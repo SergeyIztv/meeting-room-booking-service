@@ -1,0 +1,383 @@
+openapi: "3.0.3"
+info:
+  title: Meeting Room Booking Service
+  description: |
+    Сервис для автоматизации бронирования переговорных комнат в коворкинге.
+    Сотрудники могут просматривать доступность комнат, создавать и отменять свои бронирования.
+    Администраторы могут управлять любыми бронированиями.
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ────────────────────────────── Auth ──────────────────────────────
+    RegisterRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: ivan
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          description: >
+            Пароль должен быть достаточно сложным (оценка zxcvbn >= 3).
+            Рекомендуется длина не менее 8 символов, использовать буквы
+            разных регистров, цифры и спецсимволы.
+          example: "Str0ng!Pass1"
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: ivan
+        password:
+          type: string
+          format: password
+          example: secret123
+
+    TokenResponse:
+      type: object
+      required: [access_token, token_type]
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIs...
+        token_type:
+          type: string
+          example: bearer
+
+    # ────────────────────────────── Room ──────────────────────────────
+    RoomResponse:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Конференц-зал А
+        description:
+          type: string
+          nullable: true
+          example: Вместимость до 20 человек
+
+    RoomDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/RoomResponse"
+        - type: object
+          required: [slots]
+          properties:
+            slots:
+              type: array
+              items:
+                $ref: "#/components/schemas/SlotResponse"
+
+    # ────────────────────────────── Slot ──────────────────────────────
+    SlotResponse:
+      type: object
+      required: [id, start_time, end_time, is_available]
+      properties:
+        id:
+          type: integer
+          example: 1
+        start_time:
+          type: string
+          format: time
+          example: "09:00"
+        end_time:
+          type: string
+          format: time
+          example: "11:00"
+        is_available:
+          type: boolean
+          nullable: true
+          example: true
+        booked_by:
+          type: string
+          nullable: true
+          example: ivan
+
+    # ────────────────────────────── Booking ──────────────────────────────
+    BookingCreate:
+      type: object
+      required: [room_id, slot_id, date]
+      properties:
+        room_id:
+          type: integer
+          example: 1
+        slot_id:
+          type: integer
+          example: 2
+        date:
+          type: string
+          format: date
+          example: "2026-06-15"
+
+    BookingResponse:
+      type: object
+      required: [id, user_id, room_id, slot_id, date, created_at]
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        room_id:
+          type: integer
+          example: 1
+        slot_id:
+          type: integer
+          example: 2
+        date:
+          type: string
+          format: date
+          example: "2026-06-15"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-06-10T12:00:00"
+
+    # ────────────────────────────── Error ──────────────────────────────
+    ErrorResponse:
+      type: object
+      required: [code, detail]
+      properties:
+        code:
+          type: string
+          example: "SLOT_ALREADY_BOOKED"
+        detail:
+          type: string
+          example: "Этот временной слот уже забронирован."
+
+  parameters:
+    BookingIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+paths:
+  # ──────────────────────────── Auth ────────────────────────────
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация нового пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Пользователь зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          description: |
+            Некорректные данные, пользователь уже существует
+            или пароль слишком слабый (WEAK_PASSWORD)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Получение JWT-токена
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Успешная аутентификация
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "401":
+          description: Неверный логин или пароль
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ──────────────────────────── Admin ────────────────────────────
+  /admins:
+    post:
+      tags: [Auth]
+      summary: Назначить пользователя администратором (только для admin)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: integer
+                  example: 2
+      responses:
+        "200":
+          description: Пользователь повышен до admin
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                    example: "User 2 is now admin"
+        "401":
+          description: Не авторизован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Доступ запрещён (только admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ──────────────────────────── Rooms ────────────────────────────
+  /rooms:
+    get:
+      tags: [Rooms]
+      summary: Список комнат со слотами и доступностью на дату
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Список комнат
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoomDetailResponse"
+        "401":
+          description: Не авторизован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ──────────────────────────── Bookings ─────────────────────────
+  /bookings:
+    post:
+      tags: [Bookings]
+      summary: Создать бронирование
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCreate"
+      responses:
+        "201":
+          description: Бронирование создано
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "400":
+          description: Некорректные данные
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Не авторизован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Комната или слот не найдены
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Слот уже занят на эту дату
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bookings/{id}:
+    delete:
+      tags: [Bookings]
+      summary: |
+        Отменить бронирование.
+        Employee — только своё.
+        Admin — любое.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/BookingIdParam"
+      responses:
+        "204":
+          description: Бронирование отменено
+        "401":
+          description: Не авторизован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Доступ запрещён (чужое бронирование)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Бронирование не найдено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
