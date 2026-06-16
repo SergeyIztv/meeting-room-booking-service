@@ -21,8 +21,8 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50, example="ivan")
-    password: str = Field(..., example="Str0ng!Pass1")
+    username: str = Field(..., min_length=3, max_length=50, json_schema_extra={"example": "ivan"})
+    password: str = Field(..., json_schema_extra={"example": "Str0ng!Pass1"})
 
 
 class TokenResponse(BaseModel):

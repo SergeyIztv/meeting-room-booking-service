@@ -9,19 +9,19 @@ from app.models.slot import TimeSlot
 
 
 @pytest.fixture
-async def seed_data(db_engine):
-    async with db_engine.begin() as conn:
-        await conn.execute(insert(Room).values(id=1, name="Room A", description="First room"))
-        await conn.execute(
-            insert(TimeSlot).values(id=1, room_id=1, start_time=datetime.time(9, 0), end_time=datetime.time(11, 0))
-        )
-        await conn.execute(
-            insert(TimeSlot).values(id=2, room_id=1, start_time=datetime.time(13, 0), end_time=datetime.time(16, 0))
-        )
-        await conn.execute(insert(Room).values(id=2, name="Room B", description="Second room"))
-        await conn.execute(
-            insert(TimeSlot).values(id=3, room_id=2, start_time=datetime.time(10, 0), end_time=datetime.time(12, 0))
-        )
+async def seed_data(db_session):
+    await db_session.execute(insert(Room).values(id=1, name="Room A", description="First room"))
+    await db_session.execute(
+        insert(TimeSlot).values(id=1, room_id=1, start_time=datetime.time(9, 0), end_time=datetime.time(11, 0))
+    )
+    await db_session.execute(
+        insert(TimeSlot).values(id=2, room_id=1, start_time=datetime.time(13, 0), end_time=datetime.time(16, 0))
+    )
+    await db_session.execute(insert(Room).values(id=2, name="Room B", description="Second room"))
+    await db_session.execute(
+        insert(TimeSlot).values(id=3, room_id=2, start_time=datetime.time(10, 0), end_time=datetime.time(12, 0))
+    )
+    await db_session.flush()
 
 
 @pytest.mark.asyncio

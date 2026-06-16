@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, UniqueConstraint, func
-
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
@@ -8,6 +8,7 @@ class Booking(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user = relationship("User")
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
     slot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
     date = Column(Date, nullable=False)

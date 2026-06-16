@@ -7,6 +7,7 @@ from app.core.exceptions import (
     UserNotFoundError,
 )
 from app.core.security import create_access_token, hash_password, verify_password
+from app.models.enums import UserRole
 from app.models.user import User
 
 
@@ -22,7 +23,7 @@ class AuthService:
 
         user = User(
             username=username,
-            hashed_password=hash_password(password),
+            hashed_password=hash_password(password)
         )
         self.db.add(user)
         await self.db.commit()
@@ -44,8 +45,8 @@ class AuthService:
         if not user:
             raise UserNotFoundError()
 
-        if user.role == "admin":
+        if user.role == UserRole.ADMIN:
             return
 
-        user.role = "admin"
+        user.role = UserRole.ADMIN
         await self.db.commit()

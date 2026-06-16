@@ -1,9 +1,18 @@
-import pytest
+import json
+import base64
 
+import pytest
 
 PASS = "Strong!Pass1"
 PASS2 = "Strong!Pass2"
 PASS3 = "Strong!Pass3"
+
+
+def _decode_jwt(token: str) -> dict:
+    """Декодирует payload JWT без верификации (для тестов)."""
+    payload_b64 = token.split(".")[1]
+    payload_b64 += "=" * (4 - len(payload_b64) % 4)
+    return json.loads(base64.urlsafe_b64decode(payload_b64))
 
 
 @pytest.mark.asyncio
@@ -56,19 +65,17 @@ async def test_login_wrong_password(client):
 
 
 @pytest.mark.asyncio
-async def test_promote_to_admin(client):
-    reg_resp = await client.post(
-        "/auth/register", json={"username": "admin_user", "password": PASS}
-    )
-    admin_token = reg_resp.json()["access_token"]
+async def test_promote_to_admin(admin_token, client):
+    target_id = int(_decode_jwt(admin_token)["sub"]) + 1  # next user
 
-    await client.post(
+    reg_resp = await client.post(
         "/auth/register", json={"username": "target", "password": PASS2}
     )
+    target_id = int(_decode_jwt(reg_resp.json()["access_token"])["sub"])
 
     response = await client.post(
         "/admins",
-        json={"user_id": 2},
+        json={"user_id": target_id},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200
@@ -77,28 +84,8 @@ async def test_promote_to_admin(client):
 
 @pytest.mark.asyncio
 async def test_promote_to_admin_forbidden(client):
-    # first user becomes admin
-    await client.post(
-        "/auth/register", json={"username": "admin_user", "password": PASS}
-    )
-    # second user is employee
     reg_resp = await client.post(
-        "/auth/register", json={"username": "employee", "password": PASS2}
-    )
-    token = reg_resp.json()["access_token"]
-
-    response = await client.post(
-        "/admins",
-        json={"user_id": 2},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert response.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_promote_to_admin_not_found(client):
-    reg_resp = await client.post(
-        "/auth/register", json={"username": "admin_user", "password": PASS}
+        "/auth/register", json={"username": "employee", "password": PASS}
     )
     token = reg_resp.json()["access_token"]
 
@@ -106,5 +93,15 @@ async def test_promote_to_admin_not_found(client):
         "/admins",
         json={"user_id": 999},
         headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_promote_to_admin_not_found(admin_token, client):
+    response = await client.post(
+        "/admins",
+        json={"user_id": 999},
+        headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 404
