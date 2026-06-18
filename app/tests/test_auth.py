@@ -2,17 +2,14 @@ import json
 import base64
 
 import pytest
+from sqlalchemy import select
+
+from app.models import User
+from app.models.enums import UserRole
 
 PASS = "Strong!Pass1"
 PASS2 = "Strong!Pass2"
 PASS3 = "Strong!Pass3"
-
-
-def _decode_jwt(token: str) -> dict:
-    """Декодирует payload JWT без верификации (для тестов)."""
-    payload_b64 = token.split(".")[1]
-    payload_b64 += "=" * (4 - len(payload_b64) % 4)
-    return json.loads(base64.urlsafe_b64decode(payload_b64))
 
 
 @pytest.mark.asyncio
@@ -65,17 +62,17 @@ async def test_login_wrong_password(client):
 
 
 @pytest.mark.asyncio
-async def test_promote_to_admin(admin_token, client):
-    target_id = int(_decode_jwt(admin_token)["sub"]) + 1  # next user
-
-    reg_resp = await client.post(
+async def test_promote_to_admin(admin_token, client, db_session):
+    await client.post(
         "/auth/register", json={"username": "target", "password": PASS2}
     )
-    target_id = int(_decode_jwt(reg_resp.json()["access_token"])["sub"])
+
+    result = await db_session.execute(select(User).where(User.username == "target"))
+    target_user = result.scalar_one()
 
     response = await client.post(
         "/admins",
-        json={"user_id": target_id},
+        json={"user_id": target_user.id},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200
@@ -105,3 +102,41 @@ async def test_promote_to_admin_not_found(admin_token, client):
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_login_non_existent_user(client):
+    response = await client.post(
+        "/auth/login", json={"username": "ghost_user", "password": PASS}
+    )
+    assert response.status_code == 401
+    assert response.json()["code"] == "INVALID_CREDENTIALS"
+
+
+@pytest.mark.asyncio
+async def test_promote_to_admin_unauthorized(client):
+    response = await client.post(
+        "/admins",
+        json={"user_id": 999},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_promote_to_admin_already_admin(admin_token, client, db_session):
+    await client.post(
+        "/auth/register", json={"username": "already_admin_user", "password": PASS}
+    )
+
+    result = await db_session.execute(select(User).where(User.username == "already_admin_user"))
+    user = result.scalar_one()
+    user.role = UserRole.ADMIN
+    await db_session.flush()
+
+    response = await client.post(
+        "/admins",
+        json={"user_id": user.id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200
+    assert "is now admin" in response.json()["detail"]

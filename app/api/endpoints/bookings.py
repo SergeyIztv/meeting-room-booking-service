@@ -5,12 +5,22 @@ from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingResponse
+from app.schemas.error import ErrorResponse
 from app.services.booking_service import BookingService
 
 router = APIRouter()
 
 
-@router.post("/bookings", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/bookings",
+    response_model=BookingResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+    },
+)
 async def create_booking(
     body: BookingCreate,
     db: AsyncSession = Depends(get_db),
@@ -23,7 +33,15 @@ async def create_booking(
     return booking
 
 
-@router.delete("/bookings/{booking_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/bookings/{booking_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        400: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+    },
+)
 async def cancel_booking(
     booking_id: int,
     db: AsyncSession = Depends(get_db),

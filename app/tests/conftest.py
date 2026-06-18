@@ -1,11 +1,4 @@
 import os
-
-# Принудительно ставим test database ДО загрузки settings (чтоб .env не перебил)
-os.environ["DATABASE_URL"] = "postgresql+asyncpg://postgres@localhost:5432/meeting_room_test"
-os.environ["JWT_SECRET_KEY"] = "test-secret-key-which-is-long-enough-32bytes"
-
-import asyncio
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -16,9 +9,8 @@ from app.core.database import Base, get_db
 from app.main import app
 from app.models.enums import UserRole
 
-# Перебиваем ещё раз — на случай если pydantic_settings перезаписал os.environ из .env
 os.environ["DATABASE_URL"] = "postgresql+asyncpg://postgres@localhost:5432/meeting_room_test"
-os.environ["JWT_SECRET_KEY"] = "test-secret-key"
+os.environ["JWT_SECRET_KEY"] = "test-secret-key-which-is-long-enough-32bytes"
 settings.database_url = os.environ["DATABASE_URL"]
 
 engine = create_async_engine(settings.database_url, poolclass=NullPool, echo=False)
@@ -64,8 +56,9 @@ async def db_session():
 @pytest.fixture
 async def client(db_session):
     """Тестовый клиент, который подменяет get_db на изолированную сессию."""
-
-    app.dependency_overrides[get_db] = lambda: db_session
+    async def _override_get_db():
+        yield db_session
+    app.dependency_overrides[get_db] = _override_get_db
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
@@ -80,17 +73,16 @@ async def admin_token(client, db_session):
     from app.models.user import User
     from sqlalchemy import select
 
-    resp = await client.post("/auth/register", json={"username": "admin", "password": "Strong!Pass1"})
-    token = resp.json()["access_token"]
-
-    import json, base64
-    payload_b64 = token.split(".")[1]
-    payload_b64 += "=" * (4 - len(payload_b64) % 4)
-    user_id = int(json.loads(base64.urlsafe_b64decode(payload_b64))["sub"])
-
-    result = await db_session.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one()
-    user.role = UserRole.ADMIN
+    admin_user = User(
+        username="admin_test",
+        hashed_password=hash_password("Strong!Pass1"),
+        role=UserRole.ADMIN
+    )
+    db_session.add(admin_user)
     await db_session.flush()
 
-    return token
+    login_data = {"username": "admin_test", "password": "Strong!Pass1"}
+
+    resp = await client.post("/auth/login", json=login_data)
+
+    return resp.json()["access_token"]

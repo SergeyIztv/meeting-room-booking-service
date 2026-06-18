@@ -9,6 +9,7 @@ from app.api.endpoints.bookings import router as bookings_router
 from app.api.endpoints.rooms import router as rooms_router
 from app.core.database import Base, engine
 from app.core.exceptions import ServiceException
+from app.schemas.error import ErrorResponse
 
 
 @asynccontextmanager
@@ -25,17 +26,17 @@ app = FastAPI(title="Meeting Room Booking Service", lifespan=lifespan)
 async def service_exception_handler(request: Request, exc: ServiceException):
     return JSONResponse(
         status_code=exc.status_code,
-        content={"code": exc.code, "detail": exc.detail},
+        content=ErrorResponse(code=exc.code, detail=exc.detail).model_dump(),
     )
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if isinstance(exc.detail, dict):
-        return JSONResponse(status_code=exc.status_code, content=exc.detail)
-    return JSONResponse(
-        status_code=exc.status_code, content={"detail": exc.detail}
-    )
+        content = ErrorResponse(**exc.detail).model_dump()
+    else:
+        content = ErrorResponse(code="ERROR", detail=str(exc.detail)).model_dump()
+    return JSONResponse(status_code=exc.status_code, content=content)
 
 
 app.include_router(auth_router, prefix="/auth")

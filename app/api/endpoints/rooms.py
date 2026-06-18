@@ -4,12 +4,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.models.user import User
+from app.schemas.error import ErrorResponse
 from app.services.room_service import RoomService
 
 router = APIRouter()
 
 
-@router.get("/rooms")
+@router.get(
+    "/rooms",
+    responses={401: {"model": ErrorResponse}},
+)
 async def get_rooms(
     date: str = Query(...),
     db: AsyncSession = Depends(get_db),

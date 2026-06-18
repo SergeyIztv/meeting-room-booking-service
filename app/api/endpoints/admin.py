@@ -6,12 +6,20 @@ from app.api.dependencies import get_current_admin
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.auth import PromoteRequest
+from app.schemas.error import ErrorResponse
 from app.services.auth_service import AuthService
 
 router = APIRouter()
 
 
-@router.post("/admins")
+@router.post(
+    "/admins",
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+    },
+)
 async def promote_to_admin(
     body: PromoteRequest,
     db: AsyncSession = Depends(get_db),
