@@ -1,6 +1,3 @@
-import json
-import base64
-
 import pytest
 from sqlalchemy import select
 
@@ -76,7 +73,7 @@ async def test_promote_to_admin(admin_token, client, db_session):
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200
-    assert "is now admin" in response.json()["detail"]
+    assert "successfully promoted to admin" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -139,4 +136,4 @@ async def test_promote_to_admin_already_admin(admin_token, client, db_session):
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200
-    assert "is now admin" in response.json()["detail"]
+    assert "already an admin" in response.json()["detail"]

@@ -4,7 +4,8 @@ __pycache__/
 *.db
 .env
 .pytest_cache/
-
+logs/
+*.log
 test.db
 *.egg-info/
 dist/

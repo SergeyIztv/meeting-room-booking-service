@@ -1,3 +1,5 @@
+import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -7,19 +9,39 @@ from app.api.endpoints.admin import router as admin_router
 from app.api.endpoints.auth import router as auth_router
 from app.api.endpoints.bookings import router as bookings_router
 from app.api.endpoints.rooms import router as rooms_router
-from app.core.database import Base, engine
+from app.core.database import Base, async_session, engine
 from app.core.exceptions import ServiceException
+from app.core.logger import setup_logging
 from app.schemas.error import ErrorResponse
+from app.seed import seed_database
 
+logger = logging.getLogger("app")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
+    logger.info("Application starting")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield
 
+    async with async_session() as session:
+        await seed_database(session)
+
+    yield
+    logger.info("Application shutting down")
 
 app = FastAPI(title="Meeting Room Booking Service", lifespan=lifespan)
+
+@app.middleware("http")
+async def log_requests(request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration = time.perf_counter() - start
+    logger.info(
+        "%s %s → %s (%.3fs)",
+        request.method, request.url.path, response.status_code, duration,
+    )
+    return response
 
 
 @app.exception_handler(ServiceException)

@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from datetime import date
 
@@ -9,13 +10,14 @@ from app.models.room import Room
 from app.schemas.room import RoomDetailResponse
 from app.schemas.slot import SlotResponse
 
+logger = logging.getLogger("app")
+
 
 class RoomService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_rooms(self, date_str: str) -> list[RoomDetailResponse]:
-        booking_date = date.fromisoformat(date_str)
+    async def get_rooms(self, booking_date: date) -> list[RoomDetailResponse]:
 
         result = await self.db.execute(
             select(Room)
@@ -30,7 +32,7 @@ class RoomService:
         )
         bookings = result.scalars().all()
 
-        booked_map: dict[tuple[int, int], int] = {
+        booked_map: dict[tuple[int, int], str] = {
             (b.room_id, b.slot_id): b.user.username
             for b in bookings if b.user
         }
@@ -59,5 +61,10 @@ class RoomService:
                     slots=slot_list,
                 )
             )
+
+        logger.debug(
+            "Rooms fetched",
+            extra={"date": booking_date, "rooms_count": len(response)},
+        )
 
         return response

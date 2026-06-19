@@ -27,3 +27,45 @@ class InvalidCredentialsError(ServiceException):
     detail = "Invalid credentials"
 
 
+class PastDateBookingError(ServiceException):
+    status_code = 400
+    code = "PAST_DATE"
+    detail = "Cannot book in the past"
+
+
+class SlotNotFoundError(ServiceException):
+    status_code = 404
+    code = "SLOT_NOT_FOUND"
+    detail = "Slot not found"
+
+
+class RoomMismatchError(ServiceException):
+    status_code = 404
+    code = "ROOM_NOT_FOUND"
+    detail = "Room not found or slot mismatch"
+
+
+class BookingAlreadyExistsError(ServiceException):
+    status_code = 409
+    code = "SLOT_ALREADY_BOOKED"
+    detail = "Этот временной слот уже забронирован."
+
+
+class BookingNotFoundError(ServiceException):
+    status_code = 404
+    code = "BOOKING_NOT_FOUND"
+    detail = "Booking not found"
+
+
+class PastBookingCancellationError(ServiceException):
+    status_code = 400
+    code = "PAST_BOOKING_CANCELLATION"
+    detail = "Нельзя отменить бронирование из прошлого."
+
+
+class CancelForbiddenError(ServiceException):
+    status_code = 403
+    code = "FORBIDDEN"
+    detail = "Cannot cancel another user's booking"
+
+

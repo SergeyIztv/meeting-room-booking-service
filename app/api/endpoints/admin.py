@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +10,8 @@ from app.models.user import User
 from app.schemas.auth import PromoteRequest
 from app.schemas.error import ErrorResponse
 from app.services.auth_service import AuthService
+
+logger = logging.getLogger("app")
 
 router = APIRouter()
 
@@ -26,6 +30,15 @@ async def promote_to_admin(
     admin: User = Depends(get_current_admin),
 ):
     service = AuthService(db)
-    await service.promote_to_admin(body.user_id)
-    return {"detail": f"User {body.user_id} is now admin"}
+    is_new_admin = await service.promote_to_admin(body.user_id)
+
+    if not is_new_admin:
+        return {"detail": "User is already an admin"}
+
+    logger.info(
+        "Admin promoted user",
+        extra={"admin_id": admin.id, "target_user_id": body.user_id},
+    )
+
+    return {"detail": "User successfully promoted to admin"}
 
